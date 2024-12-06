@@ -1,8 +1,9 @@
 # Kuntal Ghosh
-# Code for computing adngular distribution functions (ADFs)
 # May 2022
 
 import numpy as np
+from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.transform import Rotation
 
 # Constants
 dr = 0.02
@@ -11,72 +12,88 @@ sigma = 10.0
 r_fixed = 3.0
 pi = np.pi
 
-def angle(v1, v2):
-    cos_theta = np.dot(v1, v2)
-    d1 = np.linalg.norm(v1)
-    d2 = np.linalg.norm(v2)
-    cos_theta = cos_theta / (d1 * d2)
-    a = np.arccos(cos_theta)
-    return np.degrees(a)
+# Input and output file paths
+input_file = "../../cg.lammpstrj"
+output_file = "adf.dat"
 
-# Read the input file
-with open('../traj.lammpstrj', 'r') as f:
+# Read input file
+with open(input_file, "r") as f:
     lines = f.readlines()
 
-nlines = len(lines)
-natoms = int(lines[3])
-box_length = np.array([float(line.split()[1]) for line in lines[5:8]])
-print(box_length)
+# Extract number of atoms and box dimensions
+natoms = int(lines[3].strip())
+box_length = np.array([float(lines[5].split()[1]),
+                       float(lines[6].split()[1]),
+                       float(lines[7].split()[1])])
 
 rho = natoms / np.prod(box_length)
-nframes = nlines // (natoms + 9)
+nframes = len(lines) // (natoms + 9)  # 9 header lines per frame
 
-# Initialize arrays
-xyz = np.zeros((3, natoms, nframes))
-force_xyz = np.zeros((3, natoms, nframes))
+# Allocate arrays for coordinates
+xyz = np.zeros((nframes, natoms, 3))
 
-# Store coordinates
-for i in range(nframes):
-    start = i * (natoms + 9) + 9
-    for k in range(natoms):
-        line = lines[start + k].split()
-        xyz[:, k, i] = [float(x) for x in line[1:4]]
-        force_xyz[:, k, i] = [float(x) for x in line[4:7]]
+# Parse coordinates
+frame_idx = 0
+line_idx = 0
+while frame_idx < nframes:
+    line_idx += 9  # Skip header lines
+    for atom_idx in range(natoms):
+        xyz[frame_idx, atom_idx, :] = np.array(
+            list(map(float, lines[line_idx].split()[1:4]))
+        )
+        line_idx += 1
+    frame_idx += 1
 
+# Parameters for the angular distribution function (ADF)
 angmin, angmax = 0.0, 180.0
-dmin, dmax = 0.0, 0.5 * box_length[0]
-
-print(f"angmin, angmax, dmin, dmax: {angmin}, {angmax}, {dmin}, {dmax}")
-
 nbin_ang = int((angmax - angmin) / dang) + 1
 a = np.zeros(nbin_ang)
 
+# Periodic boundary conditions helper
+def apply_pbc(positions, box_length):
+    """Apply periodic boundary conditions to ensure minimum image convention."""
+    return positions - box_length * np.round(positions / box_length)
+
+# Main loop to compute the angular distribution function
 total = 0
 for iframe in range(nframes):
+    frame_coords = xyz[iframe]
+
+    # Pairwise distances and vectors
+    pairwise_vectors = frame_coords[:, None, :] - frame_coords[None, :, :]
+    pairwise_vectors = apply_pbc(pairwise_vectors, box_length)
+    distances = np.linalg.norm(pairwise_vectors, axis=-1)
+
+    # Iterate over triplets of atoms
     for i in range(natoms):
         for j in range(natoms):
             if i != j:
-                v1 = xyz[:, j, iframe] - xyz[:, i, iframe]
-                v1 -= box_length * np.round(v1 / box_length)
-                d1 = np.dot(v1, v1)
+                v1 = pairwise_vectors[i, j]
+                d1 = distances[i, j]
 
                 for k in range(j + 1, natoms):
                     if k != i:
-                        v2 = xyz[:, k, iframe] - xyz[:, i, iframe]
-                        v2 -= box_length * np.round(v2 / box_length)
-                        d2 = np.dot(v2, v2)
+                        v2 = pairwise_vectors[i, k]
+                        d2 = distances[i, k]
 
+                        # Check if distances are within the cutoff
                         if d1 < sigma and d2 < sigma:
-                            ang = angle(v1, v2)
+                            # Calculate angle between vectors
+                            cos_theta = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+                            ang = np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0)))
 
-                            if 0.0 < ang < 180.0:
+                            # Determine histogram bin
+                            if angmin <= ang < angmax:
                                 ibin_ang = int((ang - angmin) / dang)
+                                a[ibin_ang] += 1
+                                total += 1
 
-                                if 0 <= ibin_ang < nbin_ang:
-                                    a[ibin_ang] += 1.0
-                                    total += 1
+# Normalize and write results
+with open(output_file, "w") as f:
+    for ibin_ang, count in enumerate(a):
+        ang = angmin + ibin_ang * dang
+        norm_value = count / (total * dang) if total > 0 else 0
+        f.write(f"{ang * pi / 180.0:.6f} {norm_value:.6e}\n")
 
-# Save ADF data
-ang_values = np.arange(angmin, angmax + dang, dang)
-adf = a / (total * dang)
-np.savetxt('adf.dat', np.column_stack((np.radians(ang_values), adf)))
+print(f"ADF computation complete. Results saved in '{output_file}'.")
+
