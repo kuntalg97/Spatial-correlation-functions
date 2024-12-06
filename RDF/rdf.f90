@@ -1,16 +1,10 @@
       PROGRAM three_body
 
-      ! Program for reading a LAMMPS trajectory file 
-      ! and storing the coordinates of the atoms
-
-      ! Also finds the g(r) (RDF)
+      ! Finds the g(r) (RDF)
 
       ! Kuntal Ghosh
       ! February 2022
       
-      ! Pre-requisite for BUMPer projection code
-      ! To be translated to Python later
-
       IMPLICIT NONE
 
       INTEGER*8 :: i,j,k,ios,nlines,iframe,nframes,natoms,id
