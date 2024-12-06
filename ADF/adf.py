@@ -5,18 +5,15 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 from scipy.spatial.transform import Rotation
 
-# Constants
 dr = 0.02
 dang = 1.0
 sigma = 10.0
 r_fixed = 3.0
 pi = np.pi
 
-# Input and output file paths
 input_file = "../../cg.lammpstrj"
 output_file = "adf.dat"
 
-# Read input file
 with open(input_file, "r") as f:
     lines = f.readlines()
 
@@ -49,12 +46,12 @@ angmin, angmax = 0.0, 180.0
 nbin_ang = int((angmax - angmin) / dang) + 1
 a = np.zeros(nbin_ang)
 
-# Periodic boundary conditions helper
+# Periodic boundary conditions
 def apply_pbc(positions, box_length):
     """Apply periodic boundary conditions to ensure minimum image convention."""
     return positions - box_length * np.round(positions / box_length)
 
-# Main loop to compute the angular distribution function
+# Computes the angular distribution function
 total = 0
 for iframe in range(nframes):
     frame_coords = xyz[iframe]
@@ -94,6 +91,4 @@ with open(output_file, "w") as f:
         ang = angmin + ibin_ang * dang
         norm_value = count / (total * dang) if total > 0 else 0
         f.write(f"{ang * pi / 180.0:.6f} {norm_value:.6e}\n")
-
-print(f"ADF computation complete. Results saved in '{output_file}'.")
 
