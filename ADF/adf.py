@@ -20,7 +20,7 @@ def angle(v1, v2):
     return np.degrees(a)
 
 # Read the input file
-with open('../../cg.lammpstrj', 'r') as f:
+with open('../traj.lammpstrj', 'r') as f:
     lines = f.readlines()
 
 nlines = len(lines)

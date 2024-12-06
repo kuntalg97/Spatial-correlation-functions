@@ -15,7 +15,7 @@
       REAL*8 :: v(3),v1(3),v2(3),dmin,dmax,d,angmin,angmax, &
                 ang,rij,arb,box_length(3),norm_fact,rho,d1,d2
 
-      OPEN (1, FILE = '../../cg.lammpstrj', STATUS = 'OLD')
+      OPEN (1, FILE = '../traj.lammpstrj', STATUS = 'OLD')
       OPEN (2, FILE = 'adf.dat', STATUS = 'UNKNOWN')
 
 !     Reading the file
